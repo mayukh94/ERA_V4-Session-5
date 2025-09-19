@@ -1,120 +1,106 @@
-# CNN for MNIST (PyTorch) — Training Logs & Results
+# CNN Model Training for MNIST Classification
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](#license) 
-[![Dataset: MNIST](https://img.shields.io/badge/Dataset-MNIST-blue)](http://yann.lecun.com/exdb/mnist/)
+This repository contains a Convolutional Neural Network (CNN) implementation for MNIST digit classification using PyTorch. The model demonstrates various deep learning techniques including batch normalization, dropout, and global average pooling.
 
-> **Repo:** _Add your public repository URL here._  
-> Example: `https://github.com/<username>/<repo-name>`
+## Model Architecture
 
-This repository implements a compact **Convolutional Neural Network (CNN)** for **MNIST digit classification** in PyTorch. It uses **Batch Normalization**, **Dropout**, and **Global Average Pooling (GAP)** to achieve strong accuracy with a small parameter budget.
+### Network Structure
+The CNN model consists of three main convolutional blocks:
 
----
+1. **Conv1 Block**: 
+   - Input: 1×28×28 (grayscale MNIST images)
+   - Convolution: 1→8 channels, 3×3 kernel, padding=1
+   - ReLU activation
+   - Batch Normalization
+   - Dropout (0.05)
+   - Convolution: 8→16 channels, 3×3 kernel
+   - ReLU activation
+   - Batch Normalization
+   - Dropout (0.05)
+   - MaxPool2d (2×2)
 
-## ✨ Key Results
+2. **Conv2 Block**:
+   - Convolution: 16→8 channels, 1×1 kernel, padding=1
+   - ReLU + BatchNorm + Dropout
+   - Convolution: 8→16 channels, 3×3 kernel
+   - ReLU + BatchNorm + Dropout
+   - Convolution: 16→32 channels, 3×3 kernel
+   - ReLU + BatchNorm + Dropout
+   - Convolution: 32→32 channels, 3×3 kernel
+   - ReLU + BatchNorm + Dropout
 
-- **Best Test Accuracy:** **99.55%** (achieved at **Epoch 14**)  
-- **Run Length:** 20 epochs  
-- **Dataset:** MNIST (train: 60,000 • test: 10,000)  
-- **Hardware (fill in):** e.g., CPU only / NVIDIA T4 / RTX 3060, etc.
+3. **Conv3 Block**:
+   - Convolution: 32→10 channels, 3×3 kernel
+   - ReLU + BatchNorm + Dropout
+   - **Global Average Pooling**: AvgPool2d(5×5)
+   - Output: 10 classes (digits 0-9)
 
-> **What number should I report?**  
-> Report the **maximum** validation/test accuracy observed during training. In this run, that is **99.55%** at **epoch 14**.
+## Model Analysis
 
----
-
-## 📦 Project Structure
-
-```
-.
-├── Model_Training.ipynb        # Training & evaluation notebook
-├── README.md                    # You are here
-├── requirements.txt             # (Recommended) Package pins for reproducibility
-└── data/                        # (Optional) Local cache for MNIST if you download manually
-```
-
----
-
-## 🧠 Model Overview
-
-**Architecture highlights**  
-- Stack of convolutional blocks with **ReLU + BatchNorm + Dropout(0.05)**  
-- **1×1 convolutions** to control channel width  
-- Final **Conv → GAP (AvgPool)** instead of large fully connected layers  
-- Output layer produces logits for **10 classes (0–9)**
-
-**Why GAP over FC?** Reduces parameters, improves generalization, and is translation robust.
-
-You can print parameter counts in the notebook with:
+### 1. Total Parameter Count Test
+The model uses `torchsummary` to display the total parameter count:
 ```python
 from torchsummary import summary
 summary(model, input_size=(1, 28, 28))
 ```
 
----
+**Parameter Count**: The model is designed to be lightweight with a relatively small number of parameters due to:
+- Use of 1×1 convolutions for channel reduction
+- Global Average Pooling instead of fully connected layers
+- Strategic use of batch normalization and dropout
 
-## 🛠️ Environment & Setup
+### 2. Use of Batch Normalization
+**Implementation**: ✅ **Extensively Used**
 
-1) **Python & pip**
-```bash
-python -V
-# 3.9+ recommended
-pip install -r requirements.txt
-```
-Minimal packages (pin versions in `requirements.txt`):
-```txt
-torch
-torchvision
-torchsummary
-tqdm
-numpy
-matplotlib
-```
-> If you’re using CUDA, install the torch/torchvision build matching your CUDA version from the official PyTorch site.
+Batch Normalization is applied after every convolutional layer:
+- `nn.BatchNorm2d(8)` after first conv layer
+- `nn.BatchNorm2d(16)` after second conv layer  
+- `nn.BatchNorm2d(32)` after third and fourth conv layers
+- `nn.BatchNorm2d(10)` after final conv layer
 
-2) **Run the notebook**
-```bash
-jupyter notebook Model_Training.ipynb
-```
-- Execute all cells to **train** (20 epochs by default) and **evaluate** on the **test set**.
-- The notebook prints per-epoch test metrics (loss & accuracy).
+**Benefits**:
+- Stabilizes training by normalizing inputs to each layer
+- Reduces internal covariate shift
+- Allows for higher learning rates
+- Acts as a regularizer
 
-> **Tip:** If you convert the notebook into a script, keep a `--epochs` flag, a `--seed` flag, and save **best-checkpoint** (see below).
+### 3. Use of Dropout
+**Implementation**: ✅ **Consistently Applied**
 
----
+Dropout is applied throughout the network with a rate of 0.05:
+- After every BatchNorm layer
+- Applied to all convolutional blocks
+- Helps prevent overfitting
+- Provides regularization during training
 
-## 🚀 Reproducibility
-
-Set a seed and enable deterministic algorithms where possible:
+**Configuration**:
 ```python
-import torch, random, numpy as np
-seed = 42
-random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
+nn.Dropout(0.05)  # 5% dropout rate
 ```
-> Exact reproducibility across hardware/OS/CUDA may still vary; logging the **commit hash**, **CUDA/cuDNN** versions, and **device** helps reviewers reproduce.
 
----
+### 4. Use of Fully Connected Layer or GAP
+**Implementation**: ✅ **Global Average Pooling (GAP) Used**
 
-## 💾 Checkpointing (Recommended)
-
-Save the **best** model when the test/validation accuracy improves:
+The model uses **Global Average Pooling** instead of fully connected layers:
 ```python
-best_acc = 0.0
-for epoch in range(epochs):
-    train(...)
-    test_acc = evaluate(...)
-    if test_acc > best_acc:
-        best_acc = test_acc
-        torch.save(model.state_dict(), "checkpoints/best_model.pt")
+nn.AvgPool2d(5,5)  # Global Average Pooling
 ```
-Include the saved `best_model.pt` in releases or provide a download link.
 
----
+**Advantages of GAP over FC layers**:
+- **Reduced Parameters**: Eliminates the need for large fully connected layers
+- **Better Generalization**: Reduces overfitting risk
+- **Translation Invariance**: More robust to spatial translations
+- **Computational Efficiency**: Faster inference and training
 
-## 📊 Training & Test Logs (20 Epochs)
+**Architecture Flow**:
+```
+Conv3 → ReLU → BatchNorm → Dropo
+```
 
-**Summary (accuracy only):**
+## Training & Test Logs
+
+Below is the test accuracy recorded after each epoch for a 20‑epoch run:
+
 ```
 Epoch 0 :  Test Accuracy 98.24%
 Epoch 1 :  Test Accuracy 99.04%
@@ -203,83 +189,3 @@ Test set: Average loss: 0.0877, Accuracy: 9954/10000 (99.54%)
 Test set: Average loss: 0.0902, Accuracy: 9954/10000 (99.54%)
 ```
 </details>
-
-> If you prefer a figure, log metrics to CSV and plot `epoch vs accuracy` with matplotlib.
-
----
-
-## 📈 Evaluation Tips (Optional Enhancements)
-
-Add the following for deeper evaluation (recommended for completeness):
-- **Confusion Matrix** & **Classification Report** (precision/recall/F1 by class)
-- **Per-class accuracy** (digits 0–9)
-- **Misclassified examples** visualization
-
-Example (sklearn):
-```python
-from sklearn.metrics import classification_report, confusion_matrix
-y_true, y_pred = [], []
-with torch.no_grad():
-    for images, labels in test_loader:
-        logits = model(images.to(device))
-        preds = logits.argmax(1).cpu()
-        y_true.extend(labels.numpy())
-        y_pred.extend(preds.numpy())
-
-print(classification_report(y_true, y_pred, digits=4))
-print(confusion_matrix(y_true, y_pred))
-```
-
----
-
-## ▶️ How to Run (Summary)
-
-```bash
-# 1) Install dependencies
-pip install -r requirements.txt
-
-# 2) Launch Jupyter
-jupyter notebook Model_Training.ipynb
-
-# 3) In the notebook
-#    - Run training (20 epochs by default)
-#    - Observe per-epoch test metrics
-#    - (Optional) Save best checkpoint
-```
-
----
-
-## 🔍 Notes & Design Choices
-
-- **BatchNorm + Dropout(0.05)** after most conv layers for regularization & stable training
-- **1×1 convs** for channel reduction/expansion
-- **GAP** instead of dense layers to reduce params & overfitting
-- **Small model**: fast convergence on MNIST
-
----
-
-## 📜 License
-
-This project is released under the **MIT License**. See `LICENSE` (add one if missing).
-
----
-
-## 🙌 Acknowledgments
-
-- Yann LeCun’s MNIST dataset
-- PyTorch team & docs
-- Community tutorials and references
-
----
-
-## 📫 Contact
-
-- **Author:** _Your Name_  
-- **Email:** _your.email@example.com_  
-- **LinkedIn/GitHub:** _links_
-
----
-
-### Changelog
-
-- `v1.0` — Initial public release with notebook, logs, and README.
